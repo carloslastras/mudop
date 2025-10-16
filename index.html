@@ -1,0 +1,382 @@
+<!-- Chosen Palette: Calm Neutrals -->
+<!-- Application Structure Plan: A two-part thematic SPA. Section 1 is an interactive histogram simulator for resource planning/conflict resolution (Welder/Crane scenarios). Users click buttons to apply corrective actions (leveling) and see the chart update. Section 2 is an S-Curve monitoring dashboard where a time slider lets users track cumulative resource consumption (Steel) against the plan, with dynamic data cards providing analysis. This structure directly mirrors the report's core thesis: histogram for planning, S-curve for control, making the concepts tangible and interactive for educational purposes. -->
+<!-- Visualization & Content Choices: 1) Welder/Crane Overload -> Goal: Compare demand vs. capacity -> Viz: Bar Chart (Histogram) with capacity line -> Interaction: Button click to redraw chart showing the 'leveled' state -> Justification: Visually demonstrates the problem and solution from the text. (Chart.js/Canvas). 2) Steel Consumption -> Goal: Show change/variance over time -> Viz: Dual Line Chart (S-Curve) -> Interaction: Time slider to animate progress and update data cards -> Justification: Makes the cumulative monitoring process interactive and intuitive. (Chart.js/Canvas). -->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control de Recursos del Proyecto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+        .tab-button {
+            transition: all 0.3s ease;
+        }
+        .tab-button.active {
+            background-color: #1e40af;
+            color: white;
+            border-color: #1e40af;
+        }
+        .btn-action {
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-blue-900">Panel de Control de Recursos</h1>
+            <p class="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">Una herramienta interactiva para la planificación y el control de recursos en proyectos complejos, basada en un caso de estudio del sector petrolífero.</p>
+        </header>
+
+        <main>
+            <!-- Sección 1: Histograma de Recursos -->
+            <section id="histogram-section" class="mb-16 bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold mb-2 text-blue-800">1. Planificación con Histograma de Recursos</h2>
+                    <p class="text-gray-600 mb-8 max-w-2xl mx-auto">Visualiza la demanda de recursos a lo largo del tiempo para identificar y resolver conflictos de sobrecarga antes de que ocurran.</p>
+                </div>
+
+                <div class="flex justify-center mb-6 border-b border-gray-200">
+                    <button id="welder-tab" class="tab-button active text-sm md:text-base font-semibold py-3 px-6 border-b-2 border-transparent text-gray-600 hover:text-blue-700 hover:border-blue-700">🧑‍🏭 Soldador Especializado</button>
+                    <button id="crane-tab" class="tab-button text-sm md:text-base font-semibold py-3 px-6 border-b-2 border-transparent text-gray-600 hover:text-blue-700 hover:border-blue-700">🏗️ Grúa Flotante</button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+                    <div class="lg:col-span-2">
+                        <div class="chart-container">
+                            <canvas id="histogramChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-1 bg-blue-50 p-6 rounded-lg">
+                        <h3 id="histogram-title" class="text-xl font-semibold mb-3 text-blue-900">Escenario: Sobrecarga del Soldador</h3>
+                        <p id="histogram-explanation" class="text-gray-700 mb-4">El histograma muestra un pico de demanda del 125% para el soldador en la Semana 18. Esto significa que se le han asignado 50 horas de trabajo en una semana de 40 horas, una situación insostenible que causará retrasos.</p>
+                        <button id="action-button" class="btn-action w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Aplicar Nivelación de Recursos</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sección 2: Curva S de Recursos -->
+            <section id="scurve-section" class="bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+                 <div class="text-center">
+                    <h2 class="text-3xl font-bold mb-2 text-blue-800">2. Control con Curva S de Recursos</h2>
+                    <p class="text-gray-600 mb-8 max-w-2xl mx-auto">Monitoriza el consumo acumulado de recursos a lo largo del tiempo para comparar el progreso real con el planificado y tomar decisiones informadas.</p>
+                </div>
+                
+                <div class="chart-container mb-8">
+                    <canvas id="scurveChart"></canvas>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase">Consumo Planeado (PV)</h4>
+                        <p id="pv-value" class="text-3xl font-bold text-blue-800">0 Toneladas</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase">Consumo Real (AC)</h4>
+                        <p id="ac-value" class="text-3xl font-bold text-gray-800">0 Toneladas</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase">Varianza</h4>
+                        <p id="variance-value" class="text-3xl font-bold text-red-600">0 Toneladas</p>
+                    </div>
+                </div>
+                 <div class="mt-6 px-2">
+                    <label for="time-slider" class="block text-center font-medium text-gray-700 mb-2">Punto de Control del Proyecto (Mes)</label>
+                    <input id="time-slider" type="range" min="0" max="12" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Inicio</span>
+                        <span>Mes 6</span>
+                        <span>Mes 12</span>
+                    </div>
+                </div>
+                <div id="scurve-analysis" class="mt-6 bg-blue-50 p-6 rounded-lg text-center">
+                     <p class="text-gray-700">Mueve el deslizador para ver cómo evoluciona el consumo de acero estructural a lo largo del proyecto y el análisis de la desviación.</p>
+                </div>
+            </section>
+        </main>
+        
+        <footer class="text-center mt-16 text-gray-500 text-sm">
+            <p>El Histograma y la Curva S son herramientas complementarias: el histograma ayuda en la planificación para evitar conflictos, mientras que la Curva S facilita el control durante la ejecución para gestionar el rendimiento.</p>
+        </footer>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- DATA ---
+        const scenarios = {
+            welder: {
+                title: 'Escenario: Sobrecarga del Soldador',
+                initial: {
+                    labels: ['S16', 'S17', 'S18', 'S19', 'S20'],
+                    datasets: [{
+                        label: 'Asignación de Soldador (%)',
+                        data: [50, 75, 125, 50, 25],
+                        backgroundColor: (context) => context.raw > 100 ? 'rgba(220, 38, 38, 0.6)' : 'rgba(37, 99, 235, 0.6)',
+                        borderColor: (context) => context.raw > 100 ? 'rgba(220, 38, 38, 1)' : 'rgba(37, 99, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                corrected: {
+                    labels: ['S16', 'S17', 'S18', 'S19', 'S20'],
+                    datasets: [{
+                        label: 'Asignación de Soldador (%)',
+                        data: [50, 75, 75, 100, 25],
+                        backgroundColor: 'rgba(37, 99, 235, 0.6)',
+                        borderColor: 'rgba(37, 99, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                explanation: {
+                    initial: 'El histograma muestra un pico de demanda del 125% para el soldador en la Semana 18. Esto significa que se le han asignado 50 horas de trabajo en una semana de 40 horas, una situación insostenible que causará retrasos.',
+                    corrected: 'Nivelación aplicada: La Tarea B se ha retrasado para comenzar en la Semana 19, aprovechando su holgura. La carga de trabajo del soldador ahora es manejable y no supera el 100% en ninguna semana.'
+                },
+                buttonText: 'Aplicar Nivelación de Recursos'
+            },
+            crane: {
+                title: 'Escenario: Escasez de Grúa Flotante',
+                initial: {
+                    labels: ['S24', 'S25', 'S26'],
+                    datasets: [{
+                        label: 'Demanda de Grúas',
+                        data: [1, 2, 1],
+                        backgroundColor: (context) => context.raw > 1 ? 'rgba(220, 38, 38, 0.6)' : 'rgba(37, 99, 235, 0.6)',
+                        borderColor: (context) => context.raw > 1 ? 'rgba(220, 38, 38, 1)' : 'rgba(37, 99, 235, 1)',
+                        borderWidth: 1,
+                        stack: 'Stack 0',
+                    }]
+                },
+                corrected: {
+                    labels: ['S24', 'S25', 'S26'],
+                    datasets: [
+                        { label: 'Tarea X', data: [1, 1, 0], backgroundColor: 'rgba(37, 99, 235, 0.6)', borderColor: 'rgba(37, 99, 235, 1)', borderWidth: 1, stack: 'Stack 0' },
+                        { label: 'Tarea Y', data: [0, 0, 1], backgroundColor: 'rgba(34, 197, 94, 0.6)', borderColor: 'rgba(34, 197, 94, 1)', borderWidth: 1, stack: 'Stack 0' }
+                    ]
+                },
+                explanation: {
+                    initial: 'El histograma muestra una demanda de 2 grúas en la Semana 25, pero solo hay 1 disponible en la región. Este conflicto detendrá el proyecto si no se resuelve.',
+                    corrected: 'Acción correctiva: Se ha secuenciado el trabajo. La Tarea Y ahora comienza en la Semana 26, después de que la Tarea X libere la grúa. Esto puede requerir usar la holgura de la Tarea Y o indicar un retraso.'
+                },
+                buttonText: 'Aplicar Secuenciación de Tareas'
+            }
+        };
+
+        const scurveData = {
+            labels: Array.from({ length: 13 }, (_, i) => `Mes ${i}`),
+            planned: [0, 1000, 2500, 4500, 8000, 12000, 16000, 19000, 21000, 22500, 23500, 24000, 24000],
+            actual:  [0, 1200, 3000, 6000, 11000, 15000, 19000, 22000, 24000, 25500, 26500, 27500, 28000]
+        };
+
+        let currentScenario = 'welder';
+        let isCorrected = false;
+
+        // --- HISTOGRAM ---
+        const histogramCtx = document.getElementById('histogramChart').getContext('2d');
+        const histogramChart = new Chart(histogramCtx, {
+            type: 'bar',
+            data: scenarios.welder.initial,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Uso de Recurso (%)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Semana del Proyecto' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    annotation: {
+                        annotations: {
+                            line1: {
+                                type: 'line',
+                                yMin: 100,
+                                yMax: 100,
+                                borderColor: 'rgb(255, 99, 132)',
+                                borderWidth: 2,
+                                borderDash: [6, 6],
+                                label: {
+                                    content: 'Capacidad Máxima (100%)',
+                                    enabled: true,
+                                    position: 'end'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const histogramTitle = document.getElementById('histogram-title');
+        const histogramExplanation = document.getElementById('histogram-explanation');
+        const actionButton = document.getElementById('action-button');
+        const welderTab = document.getElementById('welder-tab');
+        const craneTab = document.getElementById('crane-tab');
+        
+        function updateHistogram() {
+            const scenario = scenarios[currentScenario];
+            const data = isCorrected ? scenario.corrected : scenario.initial;
+            histogramChart.data = data;
+
+            // Update annotations and scales based on scenario
+            if(currentScenario === 'crane') {
+                histogramChart.options.scales.y.title.text = 'Unidades de Recurso';
+                histogramChart.options.plugins.annotation.annotations.line1.yMin = 1;
+                histogramChart.options.plugins.annotation.annotations.line1.yMax = 1;
+                histogramChart.options.plugins.annotation.annotations.line1.label.content = 'Capacidad Máxima (1 Unidad)';
+                histogramChart.options.scales.y.ticks = { stepSize: 1 };
+                histogramChart.options.plugins.legend.display = isCorrected;
+            } else {
+                histogramChart.options.scales.y.title.text = 'Uso de Recurso (%)';
+                histogramChart.options.plugins.annotation.annotations.line1.yMin = 100;
+                histogramChart.options.plugins.annotation.annotations.line1.yMax = 100;
+                histogramChart.options.plugins.annotation.annotations.line1.label.content = 'Capacidad Máxima (100%)';
+                histogramChart.options.scales.y.ticks = { stepSize: 25 };
+                 histogramChart.options.plugins.legend.display = false;
+            }
+            
+            histogramChart.update();
+
+            histogramTitle.textContent = scenario.title;
+            histogramExplanation.textContent = isCorrected ? scenario.explanation.corrected : scenario.explanation.initial;
+            actionButton.textContent = scenario.buttonText;
+            actionButton.style.backgroundColor = isCorrected ? '#9CA3AF' : '#2563EB';
+            actionButton.disabled = isCorrected;
+        }
+
+        actionButton.addEventListener('click', () => {
+            if (!isCorrected) {
+                isCorrected = true;
+                updateHistogram();
+            }
+        });
+        
+        welderTab.addEventListener('click', () => {
+            currentScenario = 'welder';
+            isCorrected = false;
+            welderTab.classList.add('active');
+            craneTab.classList.remove('active');
+            updateHistogram();
+        });
+        
+        craneTab.addEventListener('click', () => {
+            currentScenario = 'crane';
+            isCorrected = false;
+            craneTab.classList.add('active');
+            welderTab.classList.remove('active');
+            updateHistogram();
+        });
+        
+        // --- S-CURVE ---
+        const scurveCtx = document.getElementById('scurveChart').getContext('2d');
+        const scurveChart = new Chart(scurveCtx, {
+            type: 'line',
+            data: {
+                labels: scurveData.labels,
+                datasets: [
+                    {
+                        label: 'Consumo Planeado (PV)',
+                        data: [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Consumo Real (AC)',
+                        data: [],
+                        borderColor: 'rgb(31, 41, 55)',
+                        backgroundColor: 'rgba(31, 41, 55, 0.1)',
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Acero Estructural (Toneladas)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Mes del Proyecto' }
+                    }
+                }
+            }
+        });
+        
+        const timeSlider = document.getElementById('time-slider');
+        const pvValue = document.getElementById('pv-value');
+        const acValue = document.getElementById('ac-value');
+        const varianceValue = document.getElementById('variance-value');
+        const scurveAnalysis = document.getElementById('scurve-analysis');
+        
+        function updateSCurve(month) {
+            const monthIndex = parseInt(month);
+            
+            scurveChart.data.datasets[0].data = scurveData.planned.slice(0, monthIndex + 1);
+            scurveChart.data.datasets[1].data = scurveData.actual.slice(0, monthIndex + 1);
+            scurveChart.update();
+            
+            const currentPV = scurveData.planned[monthIndex];
+            const currentAC = scurveData.actual[monthIndex];
+            const variance = currentAC - currentPV;
+
+            pvValue.textContent = `${currentPV.toLocaleString()} Toneladas`;
+            acValue.textContent = `${currentAC.toLocaleString()} Toneladas`;
+            varianceValue.textContent = `${variance.toLocaleString()} Toneladas`;
+            
+            if (variance > 0) {
+                varianceValue.className = 'text-3xl font-bold text-red-600';
+            } else if (variance < 0) {
+                varianceValue.className = 'text-3xl font-bold text-green-600';
+            } else {
+                varianceValue.className = 'text-3xl font-bold text-gray-800';
+            }
+
+            // Update analysis text
+            if(monthIndex === 0) {
+                 scurveAnalysis.innerHTML = `<p class="text-gray-700">Mueve el deslizador para ver cómo evoluciona el consumo de acero estructural a lo largo del proyecto y el análisis de la desviación.</p>`;
+            } else if (monthIndex <= 4) {
+                 scurveAnalysis.innerHTML = `<p class="text-blue-900 font-semibold">Análisis en Mes ${monthIndex}:</p><p class="text-gray-700">El consumo real (${currentAC.toLocaleString()} t) supera al plan (${currentPV.toLocaleString()} t). En esta fase temprana, esto puede indicar un arranque más rápido de lo esperado o un desperdicio inicial de material. Se requiere una investigación en el patio de fabricación.</p>`;
+            } else {
+                 scurveAnalysis.innerHTML = `<p class="text-blue-900 font-semibold">Análisis en Mes ${monthIndex}:</p><p class="text-gray-700">La desviación negativa se mantiene. El consumo real (${currentAC.toLocaleString()} t) es consistentemente mayor que el plan (${currentPV.toLocaleString()} t). Es muy probable que el presupuesto de material se agote antes de tiempo, lo que exige una re-estimación del Coste a la Finalización (EAC).</p>`;
+            }
+        }
+
+        timeSlider.addEventListener('input', (event) => {
+            updateSCurve(event.target.value);
+        });
+
+        // Initial states
+        updateHistogram();
+        updateSCurve(0);
+    });
+</script>
+
+</body>
+</html>
+
